@@ -12,7 +12,7 @@
 
 # GET/POST Blockchain Data using Express.js
 
-#Step1: Configure Blockchain ID validation
+# Step1: Configure Blockchain ID validation
 
 1. Allow User Request
 User posts to this endpoint to receive message to sign
@@ -84,7 +84,7 @@ The Web API will allows users to submit their request using their wallet address
       "validationWindow": 300
     }
 
-#Step 2: Configure Star Registration Endpoint
+# Step 2: Configure Star Registration Endpoint
 Requirements for registering star
 
 - URL
@@ -142,7 +142,7 @@ JSON Response Example
   "previousBlockHash": "49cce61ec3e6ae664514d5fa5722d86069cf981318fc303750ce66032d0acff3"
 }
 
-#Step 3: Configure Star Lookup
+# Step 3: Configure Star Lookup
 1. Blockchain Wallet Address
 Details
 Get endpoint with URL parameter for wallet address
@@ -254,38 +254,6 @@ Example: JSON response
   "time": "1532296234",
   "previousBlockHash": "49cce61ec3e6ae664514d5fa5722d86069cf981318fc303750ce66032d0acff3"
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 # Blockchain Data
 
