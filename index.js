@@ -43,29 +43,18 @@ class ValidationWindow{
 
 let newReq = new BlockchainIDValidation();
 
-function timeExpire(res, timeLeft){
+function timeExpire(res, timeLeft, newReq, address){
+  delete newReq.requests[address]
   res.send({
     error:'Youre time validationWindow has ran out, Please start again',
     validationWindow:timeLeft
   })
 }
 
-app.get('/block/:blockHeight', (req, res) => {
-  levelSandbox.getLevelDBData(req.params.blockHeight).then(block => {
-    res.send(block)
-  })
-})
 
-app.post('/block', (req, res) => {
-  let newBlock = new simpleChain.Block(req.body.body);
-
-  let blockChain = new simpleChain.Blockchain();
-
-  blockChain.addBlock(newBlock).then(block => res.send(block))
-
-})
-
-app.post('/allow-user-request/', (req, res) => {
+// Step1: Configure Blockchain ID validation => Requirement 1: Allow User Request
+// User posts to this endpoint to recieve message to sign
+app.post('/allow-user-request', (req, res) => {
 
   let requestTimeStamp = new Date().getTime().toString().slice(0,-3);
 
@@ -74,13 +63,17 @@ app.post('/allow-user-request/', (req, res) => {
 
   newReq.addRequests(req.body.address, requestTimeStamp, newValidationWindow, `${req.body.address}:${requestTimeStamp}:starRegistry`)
 
+// Step1: Configure Blockchain ID validation => Requirement 2: Deliver User Response
+// Mesage details, Request Timestamp, Time remaining for validation window
   res.send({
-    message:`${req.body.address}:${requestTimeStamp}:starRegistry`,
     requestTimeStamp,
+    message:`${req.body.address}:${requestTimeStamp}:starRegistry`,
     validationWindow:newValidationWindow.timeLeft
   })
 })
 
+// Step1:Configure Blockchain ID validation => Requirement 3: Allow User Message signature
+// Post to this endpoint with Wallet Address and Message signature payload to be verified
 app.post('/message-signature/validate',(req, res) => {
     let request = newReq.requests[req.body.address]
 
@@ -98,11 +91,12 @@ app.post('/message-signature/validate',(req, res) => {
         }
       })
     } else {
-      delete newReq[req.body.address]
-      timeExpire(res, request.validationWindow.timeLeft);
+      timeExpire(res, request.validationWindow.timeLeft, newReq, req.body.address);
     }
 })
 
+// Step1:Configure Blockchain ID validation => Requirement 4: Validate User Request
+// With signature verified, user should be granted access to register a single star
 app.post('/requestValidation', (req, res) => {
   let request = newReq.requests[req.body.address]
 
@@ -114,9 +108,53 @@ app.post('/requestValidation', (req, res) => {
       validationWindow:request.validationWindow.timeLeft
     })
   } else {
-    delete newReq[req.body.address]
-    timeExpire(res, request.validationWindow.timeLeft);
+    timeExpire(res, request.validationWindow.timeLeft, newReq, req.body.address);
   }
+})
+
+// Step 2: Configure Star Registration Endpoint
+// story is Hex encoded
+app.post('/block', (req, res) => {
+
+  let body = {
+    ...req.body,
+    star:{
+      ...req.body.star,
+      story:new Buffer(req.body.star.story).toString('hex')
+    }
+  }
+
+  let newBlock = new simpleChain.Block(body);
+
+  let blockChain = new simpleChain.Blockchain();
+
+  blockChain.addBlock(newBlock).then(block => res.send(block))
+
+})
+
+// Step 3: Configure Star Lookup => Requirement 1: Blockchain Wallet Address
+app.get('/stars/address::address',(req, res) => {
+  let address = req.params.address
+  levelSandbox.getAllData().then(chain => {
+    let stars = chain.filter((block, index) => block.value.body.address === address)
+    res.send(stars)
+  })
+})
+
+// Step 3: Configure Star Lookup => Requirement 1: Star Block Hash
+app.get('/stars/hash::hash',(req, res) => {
+  let hash = req.params.hash
+  levelSandbox.getAllData().then(chain => {
+    let star = chain.filter((block, index) => block.value.hash === hash)
+    res.send(star[0])
+  })
+})
+
+// Step 3: Configure Star Lookup => Requirement 3: Star Block Height
+app.get('/block/:blockHeight', (req, res) => {
+  levelSandbox.getLevelDBData(req.params.blockHeight).then(block => {
+    res.send(block)
+  })
 })
 
 app.listen(8000, () => console.log('Example app listening on port 8000!'))
