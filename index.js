@@ -136,10 +136,12 @@ app.post('/block', (req, res) => {
 
       let newBlock = new simpleChain.Block(body);
 
-
       blockChain.addBlock(newBlock)
       .then(block => res.send(block))
-      .then(()=> { delete request})
+      .then(() => {
+        delete newReq.requests[req.body.address]
+      })
+
     }
   } else {
       timeExpire(res, request.validationWindow.timeLeft, newReq, req.body.address);
