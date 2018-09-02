@@ -26,12 +26,11 @@ class BlockchainIDValidation{
 
 class ValidationWindow{
   constructor(){
-    this.timeLeft = 10
+    this.timeLeft = 300
   }
 
   startCountdown(){
       let timerId = setInterval(()=>{
-        console.log(this.timeLeft);
         if(this.timeLeft > 0){
           this.timeLeft--
         }else{
@@ -138,7 +137,9 @@ app.post('/block', (req, res) => {
       let newBlock = new simpleChain.Block(body);
 
 
-      blockChain.addBlock(newBlock).then(block => res.send(block))
+      blockChain.addBlock(newBlock)
+      .then(block => res.send(block))
+      .then(()=> { delete request})
     }
   } else {
       timeExpire(res, request.validationWindow.timeLeft, newReq, req.body.address);

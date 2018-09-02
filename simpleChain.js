@@ -28,7 +28,14 @@ class Blockchain{
     this.chain = levelSandbox.getChain
 		levelSandbox.getAllData().then(chain => {
 			if(chain.length === 0){
-				this.addBlock(new Block("First block in the chain - Genesis block"));
+				this.addBlock(new Block({
+				   "address": "142BDCeSGbXjWKaAnYXbMpZ6sbrSAo3DpZ",
+				   "star": {
+				     "dec": "-26° 29' 24.9",
+				     "ra": "16h 29m 1.0s",
+				     "story": new Buffer("Genesis Star").toString('hex')
+				   }
+	 			}))
 			}
 		})
   }
