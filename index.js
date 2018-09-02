@@ -18,14 +18,15 @@ class BlockchainIDValidation{
       address: address,
       requestTimeStamp: requestTimeStamp,
       validationWindow:validationWindow,
-      message: message
+      message: message,
+      registerStar:false
     }
   }
 }
 
 class ValidationWindow{
   constructor(){
-    this.timeLeft = 600
+    this.timeLeft = 10
   }
 
   startCountdown(){
@@ -41,12 +42,13 @@ class ValidationWindow{
   }
 }
 
+let blockChain = new simpleChain.Blockchain();
 let newReq = new BlockchainIDValidation();
 
 function timeExpire(res, timeLeft, newReq, address){
   delete newReq.requests[address]
   res.send({
-    error:'Youre time validationWindow has ran out, Please start again',
+    error:'Youre validation time window has ran out, Please start again',
     validationWindow:timeLeft
   })
 }
@@ -54,22 +56,39 @@ function timeExpire(res, timeLeft, newReq, address){
 
 // Step1: Configure Blockchain ID validation => Requirement 1: Allow User Request
 // User posts to this endpoint to recieve message to sign
-app.post('/allow-user-request', (req, res) => {
+app.post('/requestValidation', (req, res) => {
+  let request = newReq.requests[req.body.address]
 
-  let requestTimeStamp = new Date().getTime().toString().slice(0,-3);
+  if(request){
+    if(request.validationWindow.timeLeft > 0){
+      res.send({
+        address:request.address,
+        requestTimeStamp:request.requestTimeStamp,
+        message:request.message,
+        validationWindow:request.validationWindow.timeLeft
+      })
+    }else{
+      delete newReq.requests[req.body.address]
+      timeExpire(res, request.validationWindow.timeLeft, newReq, req.body.address)
+    }
+  } else {
+    let requestTimeStamp = new Date().getTime().toString().slice(0,-3);
 
-  let newValidationWindow = new ValidationWindow()
-  newValidationWindow.startCountdown()
+    let newValidationWindow = new ValidationWindow()
+    newValidationWindow.startCountdown()
 
-  newReq.addRequests(req.body.address, requestTimeStamp, newValidationWindow, `${req.body.address}:${requestTimeStamp}:starRegistry`)
+    newReq.addRequests(req.body.address, requestTimeStamp, newValidationWindow, `${req.body.address}:${requestTimeStamp}:starRegistry`)
 
-// Step1: Configure Blockchain ID validation => Requirement 2: Deliver User Response
-// Mesage details, Request Timestamp, Time remaining for validation window
-  res.send({
-    requestTimeStamp,
-    message:`${req.body.address}:${requestTimeStamp}:starRegistry`,
-    validationWindow:newValidationWindow.timeLeft
-  })
+    // Step1: Configure Blockchain ID validation => Requirement 2: Deliver User Response
+    // Mesage details, Request Timestamp, Time remaining for validation window
+    res.send({
+      address:req.body.address,
+      requestTimeStamp,
+      message:`${req.body.address}:${requestTimeStamp}:starRegistry`,
+      validationWindow:newValidationWindow.timeLeft
+    })
+  }
+
 })
 
 // Step1:Configure Blockchain ID validation => Requirement 3: Allow User Message signature
@@ -95,40 +114,35 @@ app.post('/message-signature/validate',(req, res) => {
     }
 })
 
-// Step1:Configure Blockchain ID validation => Requirement 4: Validate User Request
-// With signature verified, user should be granted access to register a single star
-app.post('/requestValidation', (req, res) => {
-  let request = newReq.requests[req.body.address]
-
-  if(request.validationWindow.timeLeft > 0){
-    res.send({
-      address:request.address,
-      requestTimeStamp:request.requestTimeStamp,
-      message:request.message,
-      validationWindow:request.validationWindow.timeLeft
-    })
-  } else {
-    timeExpire(res, request.validationWindow.timeLeft, newReq, req.body.address);
-  }
-})
 
 // Step 2: Configure Star Registration Endpoint
 // story is Hex encoded
 app.post('/block', (req, res) => {
+  let request = newReq.requests[req.body.address]
 
-  let body = {
-    ...req.body,
-    star:{
-      ...req.body.star,
-      story:new Buffer(req.body.star.story).toString('hex')
+  if(request.validationWindow.timeLeft > 0){
+    if(request.registerStar){
+      res.send({
+        error:'One submission per request'
+      })
+    } else {
+      request.registerStar = true
+      let body = {
+        ...req.body,
+        star:{
+          ...req.body.star,
+          story:new Buffer(req.body.star.story).toString('hex')
+        }
+      }
+
+      let newBlock = new simpleChain.Block(body);
+
+
+      blockChain.addBlock(newBlock).then(block => res.send(block))
     }
+  } else {
+      timeExpire(res, request.validationWindow.timeLeft, newReq, req.body.address);
   }
-
-  let newBlock = new simpleChain.Block(body);
-
-  let blockChain = new simpleChain.Blockchain();
-
-  blockChain.addBlock(newBlock).then(block => res.send(block))
 
 })
 
@@ -136,7 +150,21 @@ app.post('/block', (req, res) => {
 app.get('/stars/address::address',(req, res) => {
   let address = req.params.address
   levelSandbox.getAllData().then(chain => {
-    let stars = chain.filter((block, index) => block.value.body.address === address)
+    let stars = chain.filter((block, index) => block.value.body.address === address).map((block, index)=> {
+      return {
+        ...block,
+        value:{
+          ...block.value,
+          body:{
+            ...block.value.body,
+            star:{
+              ...block.value.body.star,
+              story:new Buffer(block.value.body.star.story, 'hex').toString()
+            }
+          }
+        }
+      }
+    })
     res.send(stars)
   })
 })
@@ -145,7 +173,21 @@ app.get('/stars/address::address',(req, res) => {
 app.get('/stars/hash::hash',(req, res) => {
   let hash = req.params.hash
   levelSandbox.getAllData().then(chain => {
-    let star = chain.filter((block, index) => block.value.hash === hash)
+    let star = chain.filter((block, index) => block.value.hash === hash).map((block, index)=> {
+      return {
+        ...block,
+        value:{
+          ...block.value,
+          body:{
+            ...block.value.body,
+            star:{
+              ...block.value.body.star,
+              story:new Buffer(block.value.body.star.story, 'hex').toString()
+            }
+          }
+        }
+      }
+    })
     res.send(star[0])
   })
 })
@@ -153,7 +195,18 @@ app.get('/stars/hash::hash',(req, res) => {
 // Step 3: Configure Star Lookup => Requirement 3: Star Block Height
 app.get('/block/:blockHeight', (req, res) => {
   levelSandbox.getLevelDBData(req.params.blockHeight).then(block => {
-    res.send(block)
+    let decodedBlock = {
+          ...block,
+          body:{
+            ...block.body,
+            star:{
+              ...block.body.star,
+              story:new Buffer(block.body.star.story, 'hex').toString()
+            }
+          }
+        }
+
+    res.send(decodedBlock)
   })
 })
 
